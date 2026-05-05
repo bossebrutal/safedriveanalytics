@@ -1,0 +1,81 @@
+name: CD – Deploy to Google Cloud Run
+
+on:
+  push:
+    branches: ["main"]
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: europe-north1
+  API_SERVICE: safedriveanalytics-api
+  DASHBOARD_SERVICE: safedriveanalytics-dashboard
+
+jobs:
+  deploy-api:
+    name: Deploy ML API
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+
+      - name: Build & push API image
+        run: |
+          IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/safedriveanalytics/${{ env.API_SERVICE }}:${{ github.sha }}"
+          docker build -f api/Dockerfile -t "$IMAGE" .
+          docker push "$IMAGE"
+
+      - name: Deploy API to Cloud Run
+        run: |
+          IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/safedriveanalytics/${{ env.API_SERVICE }}:${{ github.sha }}"
+          gcloud run deploy ${{ env.API_SERVICE }} \
+            --image "$IMAGE" \
+            --region ${{ env.REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --set-env-vars="POSTGRES_HOST=${{ secrets.POSTGRES_HOST }},POSTGRES_DB=${{ secrets.POSTGRES_DB }},POSTGRES_USER=${{ secrets.POSTGRES_USER }},POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}"
+
+  deploy-dashboard:
+    name: Deploy Dashboard
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+
+      - name: Build & push Dashboard image
+        run: |
+          IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/safedriveanalytics/${{ env.DASHBOARD_SERVICE }}:${{ github.sha }}"
+          docker build -f dashboard/Dockerfile -t "$IMAGE" .
+          docker push "$IMAGE"
+
+      - name: Deploy Dashboard to Cloud Run
+        run: |
+          IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/safedriveanalytics/${{ env.DASHBOARD_SERVICE }}:${{ github.sha }}"
+          gcloud run deploy ${{ env.DASHBOARD_SERVICE }} \
+            --image "$IMAGE" \
+            --region ${{ env.REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --port 8501 \
+            --set-env-vars="POSTGRES_HOST=${{ secrets.POSTGRES_HOST }},POSTGRES_DB=${{ secrets.POSTGRES_DB }},POSTGRES_USER=${{ secrets.POSTGRES_USER }},POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}"
