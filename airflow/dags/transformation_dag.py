@@ -43,6 +43,11 @@ with DAG(
 
         return run_transformation()
 
+    def train():
+        from ml_model.train import run_training
+
+        return run_training()
+
     run_transform = PythonOperator(
         task_id="transform_and_merge",
         python_callable=transform,
@@ -52,4 +57,10 @@ with DAG(
         ),
     )
 
-    wait_for_weather >> run_transform
+    run_train = PythonOperator(
+        task_id="train_ml_model",
+        python_callable=train,
+        doc_md="Tränar GradientBoosting-modellen på senaste ml_features och sparar model.joblib.",
+    )
+
+    wait_for_weather >> run_transform >> run_train

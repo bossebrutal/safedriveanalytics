@@ -109,6 +109,17 @@ def load_model(path: str = MODEL_PATH) -> Pipeline:
     return joblib.load(path)
 
 
+def run_training() -> dict:
+    logging.basicConfig(level=logging.INFO)
+    df = load_training_data()
+    if len(df) < 100:
+        logger.error("För lite träningsdata (%d rader). Samla mer data först.", len(df))
+        return {"status": "skipped", "rows": len(df)}
+    pipeline = train_model(df)
+    save_model(pipeline)
+    return {"status": "ok", "rows": len(df)}
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     df = load_training_data()
