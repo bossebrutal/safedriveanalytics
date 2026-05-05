@@ -4,34 +4,68 @@ FastAPI – REST API för SafeDrive Analytics ML-modellen.
 Endpoints:
   POST /predict  – Prediktera trafikflöde givet väderförhållanden
   GET  /health   – Hälsokontroll
+
+Modell laddas från MLflow Model Registry (Production-stage).
+Bakgrundsuppgift kontrollerar ny version var MODEL_RELOAD_INTERVAL sekund.
 """
 
+import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
 
+import mlflow
+import mlflow.sklearn
 from fastapi import FastAPI, HTTPException
+from mlflow.tracking import MlflowClient
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
+MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI", "http://mlflow:5000")
+MLFLOW_MODEL_NAME = os.environ.get("MLFLOW_MODEL_NAME", "SafeDriveModel")
+MODEL_RELOAD_INTERVAL = int(os.environ.get("MODEL_RELOAD_INTERVAL", 300))  # sekunder
+
 _model = None
+_model_version = None
+
+
+async def _load_model_from_registry() -> None:
+    """Laddar @champion-modellen från MLflow om en ny version finns."""
+    global _model, _model_version
+    try:
+        client = MlflowClient(tracking_uri=MLFLOW_TRACKING_URI)
+        champion = client.get_model_version_by_alias(MLFLOW_MODEL_NAME, "champion")
+        latest_version = champion.version
+        if latest_version == _model_version:
+            return  # Redan laddad – inget att göra
+        model_uri = f"models:/{MLFLOW_MODEL_NAME}@champion"
+        loaded = await asyncio.to_thread(mlflow.sklearn.load_model, model_uri)
+        _model = loaded
+        _model_version = latest_version
+        logger.info("Modell v%s (@champion) laddad från MLflow.", _model_version)
+    except mlflow.exceptions.MlflowException:
+        logger.warning("Ingen @champion-modell i MLflow registry ännu.")
+    except Exception as exc:
+        logger.error("Kunde inte ladda modell från MLflow: %s", exc)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _model
-    from ml_model.train import MODEL_PATH, load_model
+    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+    await _load_model_from_registry()
 
-    try:
-        _model = load_model(MODEL_PATH)
-        logger.info("ML-modell laddad från %s", MODEL_PATH)
-    except FileNotFoundError:
-        logger.error(
-            "Modell saknas på %s. Kör ml_model/train.py för att träna modellen.", MODEL_PATH
-        )
+    async def _reload_loop():
+        while True:
+            await asyncio.sleep(MODEL_RELOAD_INTERVAL)
+            await _load_model_from_registry()
+
+    task = asyncio.create_task(_reload_loop())
     yield
+    task.cancel()
+    global _model, _model_version
     _model = None
+    _model_version = None
 
 
 app = FastAPI(
@@ -72,7 +106,7 @@ class PredictionResponse(BaseModel):
 
 @app.get("/health", tags=["system"])
 def health_check():
-    return {"status": "ok", "model_loaded": _model is not None}
+    return {"status": "ok", "model_loaded": _model is not None, "model_version": _model_version}
 
 
 @app.post("/predict", response_model=PredictionResponse, tags=["prediction"])
@@ -105,5 +139,6 @@ def predict(request: PredictionRequest):
 
     return PredictionResponse(
         predicted_vehicle_flow=round(prediction, 1),
-        model_version="1.0.0",
+        model_version=str(_model_version),
     )
+

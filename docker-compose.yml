@@ -14,6 +14,7 @@ x-airflow-common: &airflow-common
     POSTGRES_USER: ${POSTGRES_USER}
     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     TRAFIKVERKET_API_KEY: ${TRAFIKVERKET_API_KEY}
+    MLFLOW_TRACKING_URI: http://mlflow:5000
   volumes:
     - ./airflow/dags:/opt/airflow/dags
     - ./ingestion:/opt/airflow/project/ingestion
@@ -23,9 +24,42 @@ x-airflow-common: &airflow-common
   depends_on:
     postgres:
       condition: service_healthy
+    mlflow:
+      condition: service_healthy
   restart: unless-stopped
 
 services:
+  # ── MLflow Tracking Server ──────────────────────────────────────────────────
+  mlflow:
+    build:
+      context: .
+      dockerfile: mlflow/Dockerfile
+    command: >
+      mlflow server
+        --host 0.0.0.0
+        --port 5000
+        --backend-store-uri postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/mlflow
+        --artifacts-destination /mlflow/artifacts
+        --serve-artifacts
+        --allowed-hosts '*'
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - mlflow_artifacts:/mlflow/artifacts
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   # ── PostgreSQL ────────────────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
@@ -36,6 +70,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+      - ./database/02_create_mlflow_db.sh:/docker-entrypoint-initdb.d/02_create_mlflow_db.sh
     ports:
       - "5432:5432"
     healthcheck:
@@ -85,12 +120,13 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - ./ml_model:/app/ml_model
+      MLFLOW_TRACKING_URI: http://mlflow:5000
     ports:
       - "8000:8000"
     depends_on:
       postgres:
+        condition: service_healthy
+      mlflow:
         condition: service_healthy
     restart: unless-stopped
 
@@ -115,3 +151,4 @@ services:
 volumes:
   postgres_data:
   airflow_logs:
+  mlflow_artifacts:
