@@ -49,7 +49,7 @@ def load_features() -> pd.DataFrame:
         """
         SELECT
             measured_at,
-            road_number,
+            traffic_site_id,
             county,
             latitude,
             longitude,
@@ -59,7 +59,7 @@ def load_features() -> pd.DataFrame:
             precipitation_mm,
             wind_speed_ms,
             snow_depth_cm,
-            incident_count
+            road_condition_code
         FROM ml_features
         WHERE measured_at >= NOW() - INTERVAL '7 days'
         ORDER BY measured_at DESC
@@ -157,7 +157,7 @@ def main():
     col1.metric("Mätpunkter (7d)", f"{len(df):,}")
     col2.metric("Medelflöde (fordon/h)", f"{df['vehicle_flow'].mean():.0f}")
     col3.metric("Medeltemperatur (°C)", f"{df['temperature_c'].mean():.1f}")
-    col4.metric("Aktiva incidenter", f"{df['incident_count'].sum():.0f}")
+    col4.metric("Aktiva mätplatser", str(df['traffic_site_id'].nunique()))
     model_status = "✅ Laddad" if health.get("model_loaded") else "⚠️ Ej laddad"
     col5.metric("Champion-modell", f"v{champion_version}" if champion_version else "–", delta=model_status)
 
