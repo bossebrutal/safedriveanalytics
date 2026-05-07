@@ -49,13 +49,15 @@ jobs:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
         run: |
           IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/safedriveanalytics/${{ env.MLFLOW_SERVICE }}:${{ github.sha }}"
+          # Base64-encode password so any special chars survive --set-env-vars parsing
+          POSTGRES_PASSWORD_B64=$(printf '%s' "${POSTGRES_PASSWORD}" | base64 -w0)
           gcloud run deploy ${{ env.MLFLOW_SERVICE }} \
             --image "$IMAGE" \
             --region ${{ env.REGION }} \
             --platform managed \
             --allow-unauthenticated \
             --port 5000 \
-            --set-env-vars "^|^POSTGRES_HOST=${POSTGRES_HOST}|POSTGRES_USER=${POSTGRES_USER}|POSTGRES_PASSWORD=${POSTGRES_PASSWORD}|MLFLOW_ARTIFACT_BUCKET=${{ env.ARTIFACT_BUCKET }}"
+            --set-env-vars "POSTGRES_HOST=${POSTGRES_HOST},POSTGRES_USER=${POSTGRES_USER},POSTGRES_PASSWORD_B64=${POSTGRES_PASSWORD_B64},MLFLOW_ARTIFACT_BUCKET=${{ env.ARTIFACT_BUCKET }}"
 
       - name: Get MLflow URL
         id: get_url

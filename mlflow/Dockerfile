@@ -6,8 +6,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN pip install --no-cache-dir mlflow psycopg2-binary google-cloud-storage
 
-COPY mlflow/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+COPY mlflow/start.py /start.py
 
 EXPOSE 5000
-CMD ["/entrypoint.sh"]
+CMD ["python3", "/start.py"]
