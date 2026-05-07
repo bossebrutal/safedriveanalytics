@@ -7,13 +7,64 @@ on:
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   REGION: europe-north1
+  MLFLOW_SERVICE: safedriveanalytics-mlflow
   API_SERVICE: safedriveanalytics-api
   DASHBOARD_SERVICE: safedriveanalytics-dashboard
+  ARTIFACT_BUCKET: safedriveanalytics-mlflow-artifacts
 
 jobs:
+  deploy-mlflow:
+    name: Deploy MLflow
+    runs-on: ubuntu-latest
+    outputs:
+      mlflow_url: ${{ steps.get_url.outputs.url }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Create GCS bucket for MLflow artifacts
+        run: gsutil mb -p ${{ env.PROJECT_ID }} -l ${{ env.REGION }} gs://${{ env.ARTIFACT_BUCKET }} || true
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+
+      - name: Build & push MLflow image
+        run: |
+          IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/safedriveanalytics/${{ env.MLFLOW_SERVICE }}:${{ github.sha }}"
+          docker build -f mlflow/Dockerfile -t "$IMAGE" .
+          docker push "$IMAGE"
+
+      - name: Deploy MLflow to Cloud Run
+        run: |
+          IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/safedriveanalytics/${{ env.MLFLOW_SERVICE }}:${{ github.sha }}"
+          gcloud run deploy ${{ env.MLFLOW_SERVICE }} \
+            --image "$IMAGE" \
+            --region ${{ env.REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --port 5000 \
+            --set-env-vars="POSTGRES_HOST=${{ secrets.POSTGRES_HOST }},POSTGRES_USER=${{ secrets.POSTGRES_USER }},POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }},MLFLOW_ARTIFACT_BUCKET=${{ env.ARTIFACT_BUCKET }}"
+
+      - name: Get MLflow URL
+        id: get_url
+        run: |
+          URL=$(gcloud run services describe ${{ env.MLFLOW_SERVICE }} \
+            --region ${{ env.REGION }} \
+            --format 'value(status.url)')
+          echo "url=$URL" >> $GITHUB_OUTPUT
+
   deploy-api:
     name: Deploy ML API
     runs-on: ubuntu-latest
+    needs: deploy-mlflow
 
     steps:
       - uses: actions/checkout@v4
@@ -43,11 +94,12 @@ jobs:
             --region ${{ env.REGION }} \
             --platform managed \
             --allow-unauthenticated \
-            --set-env-vars="POSTGRES_HOST=${{ secrets.POSTGRES_HOST }},POSTGRES_DB=${{ secrets.POSTGRES_DB }},POSTGRES_USER=${{ secrets.POSTGRES_USER }},POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}"
+            --set-env-vars="POSTGRES_HOST=${{ secrets.POSTGRES_HOST }},POSTGRES_DB=${{ secrets.POSTGRES_DB }},POSTGRES_USER=${{ secrets.POSTGRES_USER }},POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }},MLFLOW_TRACKING_URI=${{ needs.deploy-mlflow.outputs.mlflow_url }},MLFLOW_MODEL_NAME=SafeDriveModel"
 
   deploy-dashboard:
     name: Deploy Dashboard
     runs-on: ubuntu-latest
+    needs: [deploy-mlflow, deploy-api]
 
     steps:
       - uses: actions/checkout@v4
@@ -69,6 +121,14 @@ jobs:
           docker build -f dashboard/Dockerfile -t "$IMAGE" .
           docker push "$IMAGE"
 
+      - name: Get API URL
+        id: get_api_url
+        run: |
+          URL=$(gcloud run services describe ${{ env.API_SERVICE }} \
+            --region ${{ env.REGION }} \
+            --format 'value(status.url)')
+          echo "url=$URL" >> $GITHUB_OUTPUT
+
       - name: Deploy Dashboard to Cloud Run
         run: |
           IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/safedriveanalytics/${{ env.DASHBOARD_SERVICE }}:${{ github.sha }}"
@@ -78,4 +138,5 @@ jobs:
             --platform managed \
             --allow-unauthenticated \
             --port 8501 \
-            --set-env-vars="POSTGRES_HOST=${{ secrets.POSTGRES_HOST }},POSTGRES_DB=${{ secrets.POSTGRES_DB }},POSTGRES_USER=${{ secrets.POSTGRES_USER }},POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}"
+            --set-env-vars="POSTGRES_HOST=${{ secrets.POSTGRES_HOST }},POSTGRES_DB=${{ secrets.POSTGRES_DB }},POSTGRES_USER=${{ secrets.POSTGRES_USER }},POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }},API_URL=${{ steps.get_api_url.outputs.url }},MLFLOW_TRACKING_URI=${{ needs.deploy-mlflow.outputs.mlflow_url }},MLFLOW_MODEL_NAME=SafeDriveModel"
+
