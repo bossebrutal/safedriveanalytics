@@ -36,10 +36,25 @@
 
 | ID | User Story | Uppgift | Ansvarig | Status | Poäng |
 |----|-----------|---------|----------|--------|-------|
-| S2-1 | Som ML-team vill vi ha sammanslagen data | Bygg transform + feature engineering | - | 🔄 In Progress | 8 |
+| S2-1 | Som ML-team vill vi ha sammanslagen data | Bygg transform + feature engineering | - | ✅ Done | 8 |
 | S2-2 | Som slutanvändare vill jag kunna göra prediktioner | Bygg FastAPI + ML-modell | - | ✅ Done | 8 |
 | S2-3 | Som team vill vi ha CI/CD | GitHub Actions CI + CD till Cloud Run | - | ✅ Done | 5 |
-| S2-4 | Som analytiker vill jag se insikter | Bygg Streamlit-dashboard | - | 🔄 In Progress | 5 |
+| S2-4 | Som analytiker vill jag se insikter | Bygg Streamlit-dashboard med prediktion + MLflow-metrics | - | ✅ Done | 5 |
+
+**Sprint velocity:** 26 poäng
+
+## Retrospektiv
+
+**Vad gick bra:**
+- MLflow model registry med champion/challenger-promotion fungerar som avsett
+- Airflow-schemat (DAG) tränar modellen automatiskt varje timme med ny data
+- FastAPI laddar om champion-modellen i bakgrunden (zero-downtime)
+- R² förbättrades från 0.247 (dag 1, v1) till 0.362 (dag 2, v16) i takt med mer data
+- Dashboarden visar nu live-prediktion, träningshistorik och modellprestanda
+
+**Vad kan förbättras:**
+- GCP-deploy saknas fortfarande – molndrift är nästa sprint
+- Feature engineering kan utökas (t.ex. helgdagsindikator, säsong)
 
 ---
 

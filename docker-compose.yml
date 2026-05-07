@@ -141,10 +141,17 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      API_URL: http://api:8000
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MLFLOW_MODEL_NAME: SafeDriveModel
     ports:
       - "8501:8501"
     depends_on:
       postgres:
+        condition: service_healthy
+      api:
+        condition: service_started
+      mlflow:
         condition: service_healthy
     restart: unless-stopped
 
