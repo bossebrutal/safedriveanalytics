@@ -42,6 +42,20 @@ jobs:
           docker build -f mlflow/Dockerfile -t "$IMAGE" .
           docker push "$IMAGE"
 
+      - name: Test Cloud SQL connectivity
+        env:
+          POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+        run: |
+          sudo apt-get install -y -q postgresql-client
+          echo "Testing connection to mlflow database..."
+          PGPASSWORD="${POSTGRES_PASSWORD}" psql \
+            -h "${POSTGRES_HOST}" -U "${POSTGRES_USER}" -d mlflow \
+            -c "SELECT current_user, current_database();" \
+            && echo "✓ DB connection OK" \
+            || echo "✗ DB connection FAILED"
+
       - name: Deploy MLflow to Cloud Run
         env:
           POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
