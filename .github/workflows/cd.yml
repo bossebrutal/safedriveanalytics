@@ -55,7 +55,7 @@ jobs:
             --platform managed \
             --allow-unauthenticated \
             --port 5000 \
-            --set-env-vars "POSTGRES_HOST=${POSTGRES_HOST},POSTGRES_USER=${POSTGRES_USER},POSTGRES_PASSWORD=${POSTGRES_PASSWORD},MLFLOW_ARTIFACT_BUCKET=${{ env.ARTIFACT_BUCKET }}"
+            --set-env-vars "^|^POSTGRES_HOST=${POSTGRES_HOST}|POSTGRES_USER=${POSTGRES_USER}|POSTGRES_PASSWORD=${POSTGRES_PASSWORD}|MLFLOW_ARTIFACT_BUCKET=${{ env.ARTIFACT_BUCKET }}"
 
       - name: Get MLflow URL
         id: get_url
