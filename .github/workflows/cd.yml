@@ -69,6 +69,44 @@ jobs:
           docker build -f mlflow/Dockerfile -t "$IMAGE" .
           docker push "$IMAGE"
 
+      - name: Smoke test MLflow image
+        env:
+          POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+        run: |
+          IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/safedriveanalytics/${{ env.MLFLOW_SERVICE }}:${{ github.sha }}"
+          POSTGRES_PASSWORD_B64=$(printf '%s' "${POSTGRES_PASSWORD}" | base64 -w0)
+          docker run -d --name mlflow-smoke \
+            -e POSTGRES_HOST="${POSTGRES_HOST}" \
+            -e POSTGRES_USER="${POSTGRES_USER}" \
+            -e POSTGRES_PASSWORD_B64="${POSTGRES_PASSWORD_B64}" \
+            -e MLFLOW_ARTIFACT_BUCKET="${{ env.ARTIFACT_BUCKET }}" \
+            -e PORT=5000 \
+            -p 5000:5000 \
+            "$IMAGE"
+          echo "Waiting for MLflow to start..."
+          for i in $(seq 1 18); do
+            sleep 5
+            if curl -sf http://localhost:5000/health 2>/dev/null; then
+              echo "✓ MLflow smoke test passed"
+              docker stop mlflow-smoke && docker rm mlflow-smoke
+              exit 0
+            fi
+            STATUS=$(docker inspect -f '{{.State.Status}}' mlflow-smoke 2>/dev/null)
+            if [[ "$STATUS" == "exited" ]]; then
+              echo "✗ Container exited early. Logs:"
+              docker logs mlflow-smoke
+              docker rm mlflow-smoke
+              exit 1
+            fi
+            echo "  attempt $i/18 – container status: $STATUS"
+          done
+          echo "✗ MLflow did not respond in 90s. Logs:"
+          docker logs mlflow-smoke
+          docker stop mlflow-smoke && docker rm mlflow-smoke
+          exit 1
+
       - name: Deploy MLflow to Cloud Run
         env:
           POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
@@ -85,6 +123,7 @@ jobs:
             --allow-unauthenticated \
             --port 5000 \
             --memory 1Gi \
+            --startup-cpu-boost \
             --set-env-vars "POSTGRES_HOST=${POSTGRES_HOST},POSTGRES_USER=${POSTGRES_USER},POSTGRES_PASSWORD_B64=${POSTGRES_PASSWORD_B64},MLFLOW_ARTIFACT_BUCKET=${{ env.ARTIFACT_BUCKET }}"
 
       - name: Show Cloud Run logs on failure
