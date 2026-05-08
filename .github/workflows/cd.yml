@@ -2,7 +2,7 @@ name: CD – Deploy to Google Cloud Run
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main"]  # CD deployar BARA till GCP vid push till main
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
@@ -123,7 +123,7 @@ jobs:
             --allow-unauthenticated \
             --port 5000 \
             --memory 1Gi \
-            --startup-cpu-boost \
+            --cpu-boost \
             --set-env-vars "POSTGRES_HOST=${POSTGRES_HOST},POSTGRES_USER=${POSTGRES_USER},POSTGRES_PASSWORD_B64=${POSTGRES_PASSWORD_B64},MLFLOW_ARTIFACT_BUCKET=${{ env.ARTIFACT_BUCKET }}"
 
       - name: Show Cloud Run logs on failure
