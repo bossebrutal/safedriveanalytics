@@ -6,8 +6,9 @@ Kör varje timme och hämtar senaste väderobservationer från SMHI.
 
 from datetime import datetime, timedelta
 
-from airflow import DAG
 from airflow.operators.python import PythonOperator
+
+from airflow import DAG
 
 default_args = {
     "owner": "safedriveanalytics",

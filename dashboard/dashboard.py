@@ -8,15 +8,15 @@ Inkluderar ML-modellprestanda, prediktion och träningshistorik.
 import os
 from datetime import datetime
 
-import mlflow
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 import psycopg2
 import requests
 import streamlit as st
 from dotenv import load_dotenv
 from mlflow.tracking import MlflowClient
+
+import mlflow
 
 load_dotenv()
 

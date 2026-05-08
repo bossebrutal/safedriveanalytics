@@ -13,6 +13,6 @@ COPY . .
 
 ENV PYTHONPATH=/app
 
-EXPOSE 8501
+EXPOSE 8080
 
-CMD ["streamlit", "run", "dashboard/dashboard.py", "--server.address", "0.0.0.0"]
+CMD ["sh", "-c", "streamlit run dashboard/dashboard.py --server.address 0.0.0.0 --server.port ${PORT:-8501}"]

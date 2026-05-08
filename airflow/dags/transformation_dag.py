@@ -7,9 +7,10 @@ för ML-modellträning.
 
 from datetime import datetime, timedelta
 
-from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.sensors.external_task import ExternalTaskSensor
+
+from airflow import DAG
 
 default_args = {
     "owner": "safedriveanalytics",

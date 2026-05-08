@@ -6,7 +6,6 @@ Dokumentation: https://opendata.smhi.se/apidocs/metobs/
 """
 
 import logging
-import os
 from dataclasses import dataclass
 from datetime import datetime
 

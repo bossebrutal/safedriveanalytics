@@ -7,7 +7,6 @@ Skapar den feature-tabell som ML-modellen tränas på.
 
 import logging
 import os
-from datetime import datetime, timedelta
 
 import psycopg2
 import psycopg2.extras

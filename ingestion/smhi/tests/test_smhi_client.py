@@ -1,9 +1,8 @@
 """Tester för SMHI-klienten."""
 
 from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
-import pytest
 import requests
 
 from ingestion.smhi.smhi_client import (
@@ -97,7 +96,7 @@ class TestSmhiClient:
 
         self.mock_session.get.side_effect = [station_resp, obs_resp, obs_resp]
 
-        result = self.client.get_all_latest_observations(PARAMETER_AIR_TEMPERATURE)
+        self.client.get_all_latest_observations(PARAMETER_AIR_TEMPERATURE)
         # Ska bara hämta från 2 aktiva stationer
         assert self.mock_session.get.call_count == 3  # 1 stations + 2 aktiva
 
@@ -112,7 +111,7 @@ class TestSmhiClient:
 
         self.mock_session.get.side_effect = [station_resp, obs_resp]
 
-        result = self.client.get_all_latest_observations(
+        self.client.get_all_latest_observations(
             PARAMETER_AIR_TEMPERATURE, max_stations=1
         )
         assert self.mock_session.get.call_count == 2  # 1 stations + 1 aktiv

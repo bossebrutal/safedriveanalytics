@@ -14,11 +14,12 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-import mlflow
 import mlflow.sklearn
 from fastapi import FastAPI, HTTPException
 from mlflow.tracking import MlflowClient
 from pydantic import BaseModel, Field
+
+import mlflow
 
 logger = logging.getLogger(__name__)
 

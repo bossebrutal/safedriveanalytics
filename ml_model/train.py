@@ -9,7 +9,6 @@ import logging
 import os
 import sys
 
-import mlflow
 import mlflow.sklearn
 import pandas as pd
 import psycopg2
@@ -20,6 +19,8 @@ from sklearn.metrics import mean_absolute_error, r2_score
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
+
+import mlflow
 
 load_dotenv()
 logger = logging.getLogger(__name__)

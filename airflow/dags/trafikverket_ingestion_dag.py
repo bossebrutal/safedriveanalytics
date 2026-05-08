@@ -6,8 +6,9 @@ Kör var 15:e minut och hämtar senaste trafikflöde och incidenter.
 
 from datetime import datetime, timedelta
 
-from airflow import DAG
 from airflow.operators.python import PythonOperator
+
+from airflow import DAG
 
 default_args = {
     "owner": "safedriveanalytics",
