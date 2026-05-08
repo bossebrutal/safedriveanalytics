@@ -13,9 +13,36 @@ env:
   ARTIFACT_BUCKET: safedriveanalytics-mlflow-artifacts
 
 jobs:
+  migrate-database:
+    name: Run DB Migrations
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install postgresql-client
+        run: sudo apt-get install -y -q postgresql-client
+
+      - name: Run schema migrations
+        env:
+          POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+        run: |
+          echo "Applying schema.sql to ${POSTGRES_DB}..."
+          PGPASSWORD="${POSTGRES_PASSWORD}" psql \
+            -h "${POSTGRES_HOST}" \
+            -U "${POSTGRES_USER}" \
+            -d "${POSTGRES_DB}" \
+            -f database/schema.sql \
+            -v ON_ERROR_STOP=1
+          echo "✓ Migrations complete"
+
   deploy-mlflow:
     name: Deploy MLflow
     runs-on: ubuntu-latest
+    needs: migrate-database
     outputs:
       mlflow_url: ${{ steps.get_url.outputs.url }}
 
@@ -41,20 +68,6 @@ jobs:
           IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/safedriveanalytics/${{ env.MLFLOW_SERVICE }}:${{ github.sha }}"
           docker build -f mlflow/Dockerfile -t "$IMAGE" .
           docker push "$IMAGE"
-
-      - name: Test Cloud SQL connectivity
-        env:
-          POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
-          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-        run: |
-          sudo apt-get install -y -q postgresql-client
-          echo "Testing connection to mlflow database..."
-          PGPASSWORD="${POSTGRES_PASSWORD}" psql \
-            -h "${POSTGRES_HOST}" -U "${POSTGRES_USER}" -d mlflow \
-            -c "SELECT current_user, current_database();" \
-            && echo "✓ DB connection OK" \
-            || echo "✗ DB connection FAILED"
 
       - name: Deploy MLflow to Cloud Run
         env:
