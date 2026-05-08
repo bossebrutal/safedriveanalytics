@@ -71,6 +71,7 @@ jobs:
             --platform managed \
             --allow-unauthenticated \
             --port 5000 \
+            --memory 1Gi \
             --set-env-vars "POSTGRES_HOST=${POSTGRES_HOST},POSTGRES_USER=${POSTGRES_USER},POSTGRES_PASSWORD_B64=${POSTGRES_PASSWORD_B64},MLFLOW_ARTIFACT_BUCKET=${{ env.ARTIFACT_BUCKET }}"
 
       - name: Show Cloud Run logs on failure
