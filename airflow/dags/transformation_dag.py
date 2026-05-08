@@ -2,7 +2,7 @@
 Airflow DAG: Dataomvandling och feature engineering.
 
 Körs efter att ingestion-DAGarna har kört och förbereder data
-för ML-modellträning.
+för ML-modellträning. Träning sker separat i ml_training_dag (dagligen).
 """
 
 from datetime import datetime, timedelta
@@ -27,7 +27,7 @@ with DAG(
     start_date=datetime(2024, 1, 1),
     schedule_interval="@hourly",
     catchup=False,
-    tags=["transformation", "ml"],
+    tags=["transformation"],
 ) as dag:
 
     wait_for_weather = ExternalTaskSensor(
@@ -44,11 +44,6 @@ with DAG(
 
         return run_transformation()
 
-    def train():
-        from ml_model.train import run_training
-
-        return run_training()
-
     run_transform = PythonOperator(
         task_id="transform_and_merge",
         python_callable=transform,
@@ -58,10 +53,4 @@ with DAG(
         ),
     )
 
-    run_train = PythonOperator(
-        task_id="train_ml_model",
-        python_callable=train,
-        doc_md="Tränar GradientBoosting-modellen på senaste ml_features och sparar model.joblib.",
-    )
-
-    wait_for_weather >> run_transform >> run_train
+    wait_for_weather >> run_transform
