@@ -294,6 +294,8 @@ jobs:
           SA="github-actions@${{ env.PROJECT_ID }}.iam.gserviceaccount.com"
 
           # Funktion: skapa eller uppdatera scheduler-jobb
+          # Cloud Scheduler stödjer inte europe-north1 – använder europe-west1
+          SCHEDULER_REGION="europe-west1"
           upsert_scheduler() {
             local NAME=$1
             local SCHEDULE=$2
@@ -301,9 +303,9 @@ jobs:
 
             JOB_URL="https://${{ env.REGION }}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${{ env.PROJECT_ID }}/jobs/${JOB}:run"
 
-            if gcloud scheduler jobs describe "$NAME" --location=${{ env.REGION }} &>/dev/null; then
+            if gcloud scheduler jobs describe "$NAME" --location=${SCHEDULER_REGION} &>/dev/null; then
               gcloud scheduler jobs update http "$NAME" \
-                --location=${{ env.REGION }} \
+                --location=${SCHEDULER_REGION} \
                 --schedule="$SCHEDULE" \
                 --uri="$JOB_URL" \
                 --oauth-service-account-email="$SA" \
@@ -311,7 +313,7 @@ jobs:
                 --quiet
             else
               gcloud scheduler jobs create http "$NAME" \
-                --location=${{ env.REGION }} \
+                --location=${SCHEDULER_REGION} \
                 --schedule="$SCHEDULE" \
                 --uri="$JOB_URL" \
                 --oauth-service-account-email="$SA" \
