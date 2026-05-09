@@ -232,3 +232,105 @@ jobs:
             --port 8501 \
             --set-env-vars "POSTGRES_HOST=${POSTGRES_HOST},POSTGRES_DB=${POSTGRES_DB},POSTGRES_USER=${POSTGRES_USER},POSTGRES_PASSWORD=${POSTGRES_PASSWORD},API_URL=${{ steps.get_api_url.outputs.url }},MLFLOW_TRACKING_URI=${{ needs.deploy-mlflow.outputs.mlflow_url }},MLFLOW_MODEL_NAME=SafeDriveModel"
 
+  deploy-jobs:
+    name: Deploy Pipeline Jobs
+    runs-on: ubuntu-latest
+    needs: [migrate-database, deploy-mlflow]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Enable required APIs
+        run: |
+          gcloud services enable cloudscheduler.googleapis.com run.googleapis.com --project ${{ env.PROJECT_ID }} || true
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+
+      - name: Build & push Jobs image
+        run: |
+          IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/safedriveanalytics/pipeline-jobs:${{ github.sha }}"
+          docker build -f jobs/Dockerfile -t "$IMAGE" .
+          docker push "$IMAGE"
+
+      - name: Deploy Cloud Run Jobs
+        env:
+          POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          MLFLOW_URL: ${{ needs.deploy-mlflow.outputs.mlflow_url }}
+        run: |
+          IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/safedriveanalytics/pipeline-jobs:${{ github.sha }}"
+          BASE_ENV="POSTGRES_HOST=${POSTGRES_HOST},POSTGRES_DB=${POSTGRES_DB},POSTGRES_USER=${POSTGRES_USER},POSTGRES_PASSWORD=${POSTGRES_PASSWORD},POSTGRES_PORT=5432"
+          MLFLOW_ENV="MLFLOW_TRACKING_URI=${MLFLOW_URL}"
+
+          for JOB in smhi-ingestion trafikverket-ingestion transformation ml-training; do
+            if [[ "$JOB" == "ml-training" ]]; then
+              JOB_ENV="${BASE_ENV},${MLFLOW_ENV},JOB_NAME=${JOB}"
+            else
+              JOB_ENV="${BASE_ENV},JOB_NAME=${JOB}"
+            fi
+
+            gcloud run jobs deploy "pipeline-${JOB}" \
+              --image "$IMAGE" \
+              --region ${{ env.REGION }} \
+              --set-env-vars "$JOB_ENV" \
+              --memory 512Mi \
+              --cpu 1 \
+              --max-retries 2 \
+              --task-timeout 600 \
+              --quiet
+            echo "✓ pipeline-${JOB} deployed"
+          done
+
+      - name: Set up Cloud Scheduler
+        run: |
+          # Hämta service account email för Cloud Run Jobs
+          SA="github-actions@${{ env.PROJECT_ID }}.iam.gserviceaccount.com"
+
+          # Funktion: skapa eller uppdatera scheduler-jobb
+          upsert_scheduler() {
+            local NAME=$1
+            local SCHEDULE=$2
+            local JOB=$3
+
+            JOB_URL="https://${{ env.REGION }}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${{ env.PROJECT_ID }}/jobs/${JOB}:run"
+
+            if gcloud scheduler jobs describe "$NAME" --location=${{ env.REGION }} &>/dev/null; then
+              gcloud scheduler jobs update http "$NAME" \
+                --location=${{ env.REGION }} \
+                --schedule="$SCHEDULE" \
+                --uri="$JOB_URL" \
+                --oauth-service-account-email="$SA" \
+                --time-zone="Europe/Stockholm" \
+                --quiet
+            else
+              gcloud scheduler jobs create http "$NAME" \
+                --location=${{ env.REGION }} \
+                --schedule="$SCHEDULE" \
+                --uri="$JOB_URL" \
+                --oauth-service-account-email="$SA" \
+                --time-zone="Europe/Stockholm" \
+                --quiet
+            fi
+            echo "✓ scheduler ${NAME} (${SCHEDULE})"
+          }
+
+          # SMHI: varje timme vid :00
+          upsert_scheduler "schedule-smhi-ingestion"         "0 * * * *"    "pipeline-smhi-ingestion"
+          # Trafikverket: var 15:e minut
+          upsert_scheduler "schedule-trafikverket-ingestion" "*/15 * * * *"  "pipeline-trafikverket-ingestion"
+          # Transformation: varje timme vid :10 (efter SMHI-insamling)
+          upsert_scheduler "schedule-transformation"         "10 * * * *"   "pipeline-transformation"
+          # ML-träning: dagligen kl 02:00
+          upsert_scheduler "schedule-ml-training"            "0 2 * * *"    "pipeline-ml-training"
+

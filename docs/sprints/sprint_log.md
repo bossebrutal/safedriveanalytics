@@ -65,7 +65,16 @@
 
 | ID | User Story | Uppgift | Status | Poäng |
 |----|-----------|---------|--------|-------|
-| S3-1 | Driftsätt allt på GCP | Cloud Run deploy + Cloud SQL | ⬜ Todo | 8 |
+| S3-1 | Driftsätt allt på GCP | Cloud Run deploy + Cloud SQL + MLflow 2Gi | ✅ Done | 8 |
 | S3-2 | Verifiera Airflow i molnet | Cloud Composer eller Airflow på Cloud Run | ⬜ Todo | 8 |
 | S3-3 | Presentationsslides | Slides med demo, arkitektur, agilt arbete | ⬜ Todo | 3 |
 | S3-4 | A4-dokument | Metodbeskrivning och verktygsval | ⬜ Todo | 2 |
+
+## Uppnått i S3-1
+- ✅ MLflow på Cloud Run (2Gi RAM, GCS artifacts, Cloud SQL backend)
+- ✅ FastAPI + Streamlit på Cloud Run
+- ✅ Cloud SQL (europe-north1) med 4 tabeller, 995 rader ml_features
+- ✅ CI/CD pipeline: CI på alla branches, CD bara på main
+- ✅ Airflow DAGs pekar på Cloud SQL + Cloud Run MLflow
+- ✅ SafeDriveModel tränad och registrerad i MLflow (R²=0.136, 995 rader)
+- ✅ Modell-artefakter i GCS bucket `safedriveanalytics-mlflow-artifacts`
