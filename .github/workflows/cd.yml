@@ -248,12 +248,6 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Enable required APIs
-        run: |
-          gcloud services enable cloudscheduler.googleapis.com run.googleapis.com --project ${{ env.PROJECT_ID }}
-          # Vänta på att API-aktivering propagerar
-          sleep 30
-
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
 
