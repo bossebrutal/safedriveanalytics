@@ -272,20 +272,24 @@ jobs:
           for JOB in smhi-ingestion trafikverket-ingestion transformation ml-training; do
             if [[ "$JOB" == "ml-training" ]]; then
               JOB_ENV="${BASE_ENV},${MLFLOW_ENV},JOB_NAME=${JOB}"
+              MEMORY="2Gi"
+              CPU="2"
             else
               JOB_ENV="${BASE_ENV},JOB_NAME=${JOB}"
+              MEMORY="512Mi"
+              CPU="1"
             fi
 
             gcloud run jobs deploy "pipeline-${JOB}" \
               --image "$IMAGE" \
               --region ${{ env.REGION }} \
               --set-env-vars "$JOB_ENV" \
-              --memory 512Mi \
-              --cpu 1 \
+              --memory "${MEMORY}" \
+              --cpu "${CPU}" \
               --max-retries 2 \
               --task-timeout 600 \
               --quiet
-            echo "✓ pipeline-${JOB} deployed"
+            echo "✓ pipeline-${JOB} deployed (memory=${MEMORY}, cpu=${CPU})"
           done
 
       - name: Set up Cloud Scheduler
