@@ -66,9 +66,9 @@
 | ID | User Story | Uppgift | Status | Poäng |
 |----|-----------|---------|--------|-------|
 | S3-1 | Driftsätt allt på GCP | Cloud Run deploy + Cloud SQL + MLflow 2Gi | ✅ Done | 8 |
-| S3-2 | Verifiera Airflow i molnet | Cloud Composer eller Airflow på Cloud Run | ⬜ Todo | 8 |
-| S3-3 | Presentationsslides | Slides med demo, arkitektur, agilt arbete | ⬜ Todo | 3 |
-| S3-4 | A4-dokument | Metodbeskrivning och verktygsval | ⬜ Todo | 2 |
+| S3-2 | Pipeline i molnet | Cloud Run Jobs + Cloud Scheduler (4 schemalagda jobb) | ✅ Done | 8 |
+| S3-3 | Presentationsslides | Slides med demo, arkitektur, agilt arbete | ✅ Done | 3 |
+| S3-4 | A4-dokument | Metodbeskrivning och verktygsval | ✅ Done | 2 |
 
 ## Uppnått i S3-1
 - ✅ MLflow på Cloud Run (2Gi RAM, GCS artifacts, Cloud SQL backend)
@@ -78,3 +78,38 @@
 - ✅ Airflow DAGs pekar på Cloud SQL + Cloud Run MLflow
 - ✅ SafeDriveModel tränad och registrerad i MLflow (R²=0.136, 995 rader)
 - ✅ Modell-artefakter i GCS bucket `safedriveanalytics-mlflow-artifacts`
+
+## Uppnått i S3-2
+- ✅ `jobs/runner.py` – dispatcher som kör rätt pipeline-steg via JOB_NAME env-var
+- ✅ `jobs/Dockerfile` – bygger delad image för alla pipeline-jobb
+- ✅ 4 Cloud Run Jobs deployade (europe-north1):
+  - `pipeline-smhi-ingestion`
+  - `pipeline-trafikverket-ingestion`
+  - `pipeline-transformation`
+  - `pipeline-ml-training`
+- ✅ 4 Cloud Scheduler-scheman (europe-west1):
+  - SMHI: varje timme :00
+  - Trafikverket: var 15:e minut
+  - Transformation: varje timme :10
+  - ML-träning: dagligen kl 02:00
+- ✅ IAM: Cloud Scheduler Admin-roll tillagd för github-actions SA
+
+## Uppnått i S3-3 & S3-4
+- ✅ Presentationsslides skapade (PPTX med 8 slides, manus i docs/)
+- ✅ A4-projektbeskrivning genererad (docs/projektbeskrivning_a4.docx)
+- ✅ Zippad kod inkl. .git-mapp (safedriveanalytics_submission.zip)
+- ✅ Bugfix: pipeline-ml-training minnesgräns höjd till 2Gi (OOM-fix i cd.yml)
+- ✅ ML-modell tränad och registrerad i MLflow (R²=0.342, v4)
+
+**Sprint velocity:** 21 poäng
+
+## Retrospektiv
+
+**Vad gick bra:**
+- Hela systemet körs i GCP med automatiska schemalagda pipelines
+- Champion/challenger-logik fungerar – modellen förbättras med mer data
+- CI/CD-flödet från push till deploy fungerar utan manuella steg
+
+**Vad kan förbättras:**
+- ML-träningsjobbet behövde mer RAM än ursprungligen allokerat (512Mi → 2Gi)
+- Fler features (t.ex. helgdagsindikator) skulle förbättra modellens R²
